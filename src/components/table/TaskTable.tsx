@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Task, TaskComplexity, TaskStatus } from "@/lib/types";
 import {
   TASK_COMPLEXITIES,
@@ -8,14 +8,15 @@ import {
 } from "@/lib/types";
 import { useTasks } from "@/context/TaskContext";
 import { Badge } from "@/components/ui/Badge";
+import { TagDropdown } from "@/components/tags/TagDropdown";
 import { formatDateISO } from "@/lib/date-utils";
 
 export function TaskTable() {
   const { tasks, addTask, updateTask, deleteTask } = useTasks();
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     const today = formatDateISO(new Date());
-    addTask({
+    await addTask({
       name: "New Task",
       startDate: today,
       endDate: today,
@@ -73,8 +74,8 @@ export function TaskTable() {
                 <TaskRow
                   key={task.id}
                   task={task}
-                  onUpdate={(updates) => updateTask(task.id, updates)}
-                  onDelete={() => deleteTask(task.id)}
+                  onUpdate={(updates) => void updateTask(task.id, updates)}
+                  onDelete={() => void deleteTask(task.id)}
                 />
               ))
             )}
@@ -117,16 +118,16 @@ function TaskRow({
   onUpdate: (updates: Partial<Task>) => void;
   onDelete: () => void;
 }) {
-  const [editingTags, setEditingTags] = useState(false);
-  const [tagsInput, setTagsInput] = useState(task.tags.join(", "));
+  const [name, setName] = useState(task.name);
 
-  const commitTags = () => {
-    const tags = tagsInput
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    onUpdate({ tags });
-    setEditingTags(false);
+  useEffect(() => {
+    setName(task.name);
+  }, [task.name]);
+
+  const commitName = () => {
+    if (name.trim() !== task.name) {
+      onUpdate({ name: name.trim() || "Untitled Task" });
+    }
   };
 
   return (
@@ -155,8 +156,14 @@ function TaskRow({
       <td className="px-4 py-2">
         <input
           type="text"
-          value={task.name}
-          onChange={(e) => onUpdate({ name: e.target.value })}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={commitName}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.currentTarget.blur();
+            }
+          }}
           className="w-full rounded border border-transparent bg-transparent px-1 py-1 font-mono text-sm text-terminal-text outline-none focus:border-terminal-border focus:bg-terminal-elevated"
         />
       </td>
@@ -195,35 +202,10 @@ function TaskRow({
       </td>
 
       <td className="px-4 py-2">
-        {editingTags ? (
-          <input
-            type="text"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-            onBlur={commitTags}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitTags();
-              if (e.key === "Escape") {
-                setTagsInput(task.tags.join(", "));
-                setEditingTags(false);
-              }
-            }}
-            autoFocus
-            placeholder="tag1, tag2"
-            className="w-full rounded border border-terminal-border bg-terminal-elevated px-2 py-1 font-mono text-xs text-terminal-text outline-none"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setTagsInput(task.tags.join(", "));
-              setEditingTags(true);
-            }}
-            className="w-full rounded px-1 py-1 text-left font-mono text-xs text-terminal-muted hover:bg-terminal-elevated"
-          >
-            {task.tags.length > 0 ? task.tags.join(", ") : "Add tags…"}
-          </button>
-        )}
+        <TagDropdown
+          selectedTags={task.tags}
+          onChange={(tags) => onUpdate({ tags })}
+        />
       </td>
 
       <td className="px-4 py-2">

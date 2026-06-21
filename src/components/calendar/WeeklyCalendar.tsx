@@ -5,13 +5,14 @@ import type { Task } from "@/lib/types";
 import { DAY_LABELS } from "@/lib/constants";
 import { useTasks } from "@/context/TaskContext";
 import { Badge } from "@/components/ui/Badge";
+import { useDragDateRange } from "@/hooks/useDragDateRange";
+import { useTaskFormModal } from "@/hooks/useTaskFormModal";
 import {
   addDays,
   formatDateISO,
   getWeekStart,
   isDateInRange,
   isToday,
-  parseDate,
 } from "@/lib/date-utils";
 
 interface WeeklyCalendarProps {
@@ -23,6 +24,9 @@ export function WeeklyCalendar({ year }: WeeklyCalendarProps) {
   const [weekStart, setWeekStart] = useState(() =>
     getWeekStart(new Date(year, new Date().getMonth(), new Date().getDate())),
   );
+  const { openCreate, openEdit, modal } = useTaskFormModal("Low");
+  const dragSelection = useDragDateRange(openCreate);
+  const { startDrag, extendDrag, isInRange, isDragging } = dragSelection;
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -37,76 +41,112 @@ export function WeeklyCalendar({ year }: WeeklyCalendarProps) {
   const weekLabel = `${formatDateISO(weekDays[0])} — ${formatDateISO(weekDays[6])}`;
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-terminal-border px-6 py-3">
-        <div>
-          <h2 className="font-mono text-xs uppercase tracking-[0.25em] text-terminal-muted">
-            Weekly Calendar
-          </h2>
-          <p className="mt-1 font-mono text-[10px] text-terminal-dim">
-            {weekLabel} · All complexities · {weekTasks.length} tasks
-          </p>
+    <>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-terminal-border px-6 py-3">
+          <div>
+            <h2 className="font-mono text-xs uppercase tracking-[0.25em] text-terminal-muted">
+              Weekly Calendar
+            </h2>
+            <p className="mt-1 font-mono text-[10px] text-terminal-dim">
+              {weekLabel} · All complexities · {weekTasks.length} tasks · Click
+              or drag days to add · Click a task to edit
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <NavButton onClick={handlePrev} label="Previous week">
+              ‹
+            </NavButton>
+            <NavButton onClick={handleToday} label="This week">
+              Today
+            </NavButton>
+            <NavButton onClick={handleNext} label="Next week">
+              ›
+            </NavButton>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <NavButton onClick={handlePrev} label="Previous week">
-            ‹
-          </NavButton>
-          <NavButton onClick={handleToday} label="This week">
-            Today
-          </NavButton>
-          <NavButton onClick={handleNext} label="Next week">
-            ›
-          </NavButton>
-        </div>
-      </div>
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="grid grid-cols-7 gap-px overflow-hidden rounded border border-terminal-border bg-terminal-border">
-          {weekDays.map((day, index) => {
-            const dayTasks = getTasksForDay(tasks, day);
-            const current = isToday(day);
+        <div
+          className={`flex-1 overflow-auto p-4 ${isDragging ? "select-none" : ""}`}
+        >
+          <div className="grid grid-cols-7 gap-px overflow-hidden rounded border border-terminal-border bg-terminal-border">
+            {weekDays.map((day, index) => {
+              const dayTasks = getTasksForDay(tasks, day);
+              const current = isToday(day);
+              const dateIso = formatDateISO(day);
+              const inRange = isInRange(dateIso);
 
-            return (
-              <div
-                key={formatDateISO(day)}
-                className={`flex min-h-[320px] flex-col bg-terminal-bg ${
-                  current ? "ring-1 ring-inset ring-accent-blue" : ""
-                }`}
-              >
+              return (
                 <div
-                  className={`border-b border-terminal-border px-3 py-2 ${
-                    current ? "bg-accent-yellow/10" : "bg-terminal-surface"
-                  }`}
+                  key={dateIso}
+                  onMouseDown={(event) => {
+                    if (event.target === event.currentTarget) {
+                      event.preventDefault();
+                      startDrag(dateIso);
+                    }
+                  }}
+                  onMouseEnter={() => extendDrag(dateIso)}
+                  className={`flex min-h-[320px] cursor-crosshair flex-col transition-colors ${
+                    inRange
+                      ? "bg-accent-orange/30"
+                      : "bg-terminal-bg hover:bg-terminal-elevated/30"
+                  } ${current ? "ring-1 ring-inset ring-accent-blue" : ""}`}
                 >
-                  <div className="font-mono text-[10px] uppercase tracking-wider text-terminal-dim">
-                    {DAY_LABELS[index]}
-                  </div>
                   <div
-                    className={`font-mono text-xl font-bold ${
-                      current ? "text-accent-yellow" : "text-terminal-text"
+                    className={`border-b border-terminal-border px-3 py-2 ${
+                      current ? "bg-accent-yellow/10" : "bg-terminal-surface"
                     }`}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      startDrag(dateIso);
+                    }}
+                    onMouseEnter={() => extendDrag(dateIso)}
                   >
-                    {day.getDate()}
+                    <div className="font-mono text-[10px] uppercase tracking-wider text-terminal-dim">
+                      {DAY_LABELS[index]}
+                    </div>
+                    <div
+                      className={`font-mono text-xl font-bold ${
+                        current ? "text-accent-yellow" : "text-terminal-text"
+                      }`}
+                    >
+                      {day.getDate()}
+                    </div>
+                  </div>
+
+                  <div
+                    className="flex flex-1 flex-col gap-2 p-2"
+                    onMouseDown={(event) => {
+                      if (event.target === event.currentTarget) {
+                        event.preventDefault();
+                        startDrag(dateIso);
+                      }
+                    }}
+                    onMouseEnter={() => extendDrag(dateIso)}
+                  >
+                    {dayTasks.length === 0 ? (
+                      <span className="font-mono text-[10px] text-terminal-dim">
+                        + Add task
+                      </span>
+                    ) : (
+                      dayTasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          onEdit={() => openEdit(task)}
+                        />
+                      ))
+                    )}
                   </div>
                 </div>
-
-                <div className="flex flex-1 flex-col gap-2 p-2">
-                  {dayTasks.length === 0 ? (
-                    <span className="font-mono text-[10px] text-terminal-dim">
-                      —
-                    </span>
-                  ) : (
-                    dayTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} />
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
-    </div>
+
+      {modal}
+    </>
   );
 }
 
@@ -117,9 +157,17 @@ function getTasksForDay(tasks: Task[], day: Date): Task[] {
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({ task, onEdit }: { task: Task; onEdit: () => void }) {
   return (
-    <div className="rounded border border-terminal-border bg-terminal-surface p-2">
+    <button
+      type="button"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onEdit();
+      }}
+      className="rounded border border-terminal-border bg-terminal-surface p-2 text-left transition-colors hover:border-accent-orange/50 hover:bg-terminal-elevated"
+    >
       <p className="truncate font-mono text-xs font-bold text-terminal-text">
         {task.name}
       </p>
@@ -132,7 +180,7 @@ function TaskCard({ task }: { task: Task }) {
           {task.tags.join(" · ")}
         </p>
       )}
-    </div>
+    </button>
   );
 }
 

@@ -1,10 +1,23 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
+
 interface AppHeaderProps {
   year: number;
   onPrevYear: () => void;
   onNextYear: () => void;
   onToday: () => void;
+}
+
+function getInitials(email: string): string {
+  const localPart = email.split("@")[0] ?? email;
+  const parts = localPart.split(/[._-]/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  return localPart.slice(0, 2).toUpperCase();
 }
 
 export function AppHeader({
@@ -13,6 +26,9 @@ export function AppHeader({
   onNextYear,
   onToday,
 }: AppHeaderProps) {
+  const { user, logOut } = useAuth();
+  const initials = user?.email ? getInitials(user.email) : "??";
+
   return (
     <header className="flex items-center justify-between border-b border-terminal-border bg-terminal-bg px-6 py-4">
       <div className="flex items-center gap-6">
@@ -38,12 +54,22 @@ export function AppHeader({
         </h1>
       </div>
 
-      <div className="flex items-center gap-2">
-        <PillButton color="bg-terminal-elevated" badge="4">
-          Views
-        </PillButton>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-terminal-border bg-terminal-elevated font-mono text-xs text-terminal-text">
-          JP
+      <div className="flex items-center gap-3">
+        <span className="hidden max-w-[180px] truncate font-mono text-[10px] text-terminal-dim sm:block">
+          {user?.email}
+        </span>
+        <button
+          type="button"
+          onClick={() => void logOut()}
+          className="rounded border border-terminal-border bg-terminal-surface px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-terminal-muted transition-colors hover:border-terminal-muted hover:text-terminal-text"
+        >
+          Sign Out
+        </button>
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-terminal-border bg-terminal-elevated font-mono text-xs text-terminal-text"
+          title={user?.email ?? "Signed in"}
+        >
+          {initials}
         </div>
       </div>
     </header>
@@ -67,28 +93,6 @@ function HeaderButton({
       className="flex h-8 w-8 items-center justify-center rounded border border-terminal-border bg-terminal-surface font-mono text-lg text-terminal-muted transition-colors hover:border-terminal-muted hover:text-terminal-text"
     >
       {children}
-    </button>
-  );
-}
-
-function PillButton({
-  children,
-  color,
-  badge,
-}: {
-  children: React.ReactNode;
-  color: string;
-  badge: string;
-}) {
-  return (
-    <button
-      type="button"
-      className={`hidden items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[10px] font-medium uppercase tracking-wider text-white sm:flex ${color}`}
-    >
-      {children}
-      <span className="rounded-full bg-black/30 px-1.5 py-0.5 text-[9px]">
-        {badge}
-      </span>
     </button>
   );
 }

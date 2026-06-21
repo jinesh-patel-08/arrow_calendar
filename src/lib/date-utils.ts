@@ -64,6 +64,44 @@ export interface MonthTaskSpan {
   endCol: number;
 }
 
+export interface PlacedTaskSpan extends MonthTaskSpan {
+  lane: number;
+}
+
+export function assignTaskLanes(spans: MonthTaskSpan[]): {
+  placed: PlacedTaskSpan[];
+  laneCount: number;
+} {
+  if (spans.length === 0) {
+    return { placed: [], laneCount: 0 };
+  }
+
+  const sorted = [...spans].sort((a, b) => {
+    if (a.startCol !== b.startCol) return a.startCol - b.startCol;
+    return b.endCol - b.startCol - (a.endCol - a.startCol);
+  });
+
+  const laneEnds: number[] = [];
+  const placed: PlacedTaskSpan[] = [];
+
+  for (const span of sorted) {
+    let lane = 0;
+    while (lane < laneEnds.length && span.startCol <= laneEnds[lane]) {
+      lane += 1;
+    }
+
+    if (lane === laneEnds.length) {
+      laneEnds.push(span.endCol);
+    } else {
+      laneEnds[lane] = span.endCol;
+    }
+
+    placed.push({ ...span, lane });
+  }
+
+  return { placed, laneCount: laneEnds.length };
+}
+
 export function getTaskSpansForMonth(
   tasks: Task[],
   year: number,

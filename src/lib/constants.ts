@@ -30,6 +30,12 @@ export const VIEW_TABS: {
     subtitle: "Admin",
     filter: "all",
   },
+  {
+    id: "tags",
+    label: "Tags",
+    subtitle: "Manage",
+    filter: "all",
+  },
 ];
 
 export const COMPLEXITY_COLORS: Record<TaskComplexity, string> = {
@@ -61,3 +67,16 @@ export const MONTH_LABELS = [
 ] as const;
 
 export const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export const TAG_COLOR_PRESETS = [
+  "#FFB336",
+  "#4D88FF",
+  "#B07CFF",
+  "#3DD68C",
+  "#F5C842",
+  "#FF6B6B",
+  "#56CCF2",
+  "#EB5757",
+  "#9B59B6",
+  "#E67E22",
+] as const;

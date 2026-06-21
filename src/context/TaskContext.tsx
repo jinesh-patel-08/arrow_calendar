@@ -4,60 +4,124 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
-  useReducer,
+  useState,
   type ReactNode,
 } from "react";
-import { SAMPLE_TASKS } from "@/lib/sample-data";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  updateDoc,
+} from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
+import { getFirebaseDb, isFirebaseConfigured } from "@/lib/firebase";
 import type { Task, TaskComplexity } from "@/lib/types";
-
-type TaskAction =
-  | { type: "ADD_TASK"; task: Task }
-  | { type: "UPDATE_TASK"; id: string; updates: Partial<Task> }
-  | { type: "DELETE_TASK"; id: string };
-
-function taskReducer(state: Task[], action: TaskAction): Task[] {
-  switch (action.type) {
-    case "ADD_TASK":
-      return [...state, action.task];
-    case "UPDATE_TASK":
-      return state.map((task) =>
-        task.id === action.id ? { ...task, ...action.updates } : task,
-      );
-    case "DELETE_TASK":
-      return state.filter((task) => task.id !== action.id);
-    default:
-      return state;
-  }
-}
 
 interface TaskContextValue {
   tasks: Task[];
-  addTask: (task: Omit<Task, "id">) => void;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  addTask: (task: Omit<Task, "id">) => Promise<void>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
   getTasksByComplexity: (complexity: TaskComplexity | "all") => Task[];
 }
 
 const TaskContext = createContext<TaskContextValue | null>(null);
 
+function mapDocToTask(id: string, data: Record<string, unknown>): Task {
+  return {
+    id,
+    name: String(data.name ?? ""),
+    startDate: String(data.startDate ?? ""),
+    endDate: String(data.endDate ?? ""),
+    status: data.status as Task["status"],
+    complexity: data.complexity as Task["complexity"],
+    tags: Array.isArray(data.tags) ? data.tags.map(String) : [],
+  };
+}
+
 export function TaskProvider({ children }: { children: ReactNode }) {
-  const [tasks, dispatch] = useReducer(taskReducer, SAMPLE_TASKS);
+  const { user } = useAuth();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const addTask = useCallback((task: Omit<Task, "id">) => {
-    dispatch({
-      type: "ADD_TASK",
-      task: { ...task, id: crypto.randomUUID() },
-    });
-  }, []);
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user) {
+      setTasks([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
-    dispatch({ type: "UPDATE_TASK", id, updates });
-  }, []);
+    setLoading(true);
+    const db = getFirebaseDb();
+    const tasksRef = collection(db, "users", user.uid, "tasks");
 
-  const deleteTask = useCallback((id: string) => {
-    dispatch({ type: "DELETE_TASK", id });
-  }, []);
+    const unsubscribe = onSnapshot(
+      tasksRef,
+      (snapshot) => {
+        const nextTasks = snapshot.docs.map((document) =>
+          mapDocToTask(document.id, document.data()),
+        );
+        setTasks(nextTasks);
+        setLoading(false);
+        setError(null);
+      },
+      (snapshotError) => {
+        setError(snapshotError.message);
+        setLoading(false);
+      },
+    );
+
+    return unsubscribe;
+  }, [user]);
+
+  const addTask = useCallback(
+    async (task: Omit<Task, "id">) => {
+      if (!user) return;
+
+      const db = getFirebaseDb();
+      await addDoc(collection(db, "users", user.uid, "tasks"), {
+        ...task,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    [user],
+  );
+
+  const updateTask = useCallback(
+    async (id: string, updates: Partial<Task>) => {
+      if (!user) return;
+
+      const db = getFirebaseDb();
+      const { id: _ignored, ...safeUpdates } = updates as Partial<Task> & {
+        id?: string;
+      };
+
+      await updateDoc(doc(db, "users", user.uid, "tasks", id), {
+        ...safeUpdates,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    [user],
+  );
+
+  const deleteTask = useCallback(
+    async (id: string) => {
+      if (!user) return;
+
+      const db = getFirebaseDb();
+      await deleteDoc(doc(db, "users", user.uid, "tasks", id));
+    },
+    [user],
+  );
 
   const getTasksByComplexity = useCallback(
     (complexity: TaskComplexity | "all") => {
@@ -70,12 +134,14 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       tasks,
+      loading,
+      error,
       addTask,
       updateTask,
       deleteTask,
       getTasksByComplexity,
     }),
-    [tasks, addTask, updateTask, deleteTask, getTasksByComplexity],
+    [tasks, loading, error, addTask, updateTask, deleteTask, getTasksByComplexity],
   );
 
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;

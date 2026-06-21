@@ -12,11 +12,18 @@ export interface Task {
   tags: string[];
 }
 
+export interface TagDefinition {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export type ViewTab =
   | "linear-year"
   | "linear-zoom"
   | "weekly"
-  | "table";
+  | "table"
+  | "tags";
 
 export const TASK_STATUSES: TaskStatus[] = [
   "Planned",

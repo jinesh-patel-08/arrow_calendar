@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useTasks } from "@/context/TaskContext";
+import { useTagsManager } from "@/context/TagContext";
+import { useDragDateRange } from "@/hooks/useDragDateRange";
+import { useTaskFormModal } from "@/hooks/useTaskFormModal";
 import {
   LinearCalendarGrid,
   getRollingMonths,
@@ -13,10 +16,13 @@ interface ZoomedLinearCalendarProps {
 
 export function ZoomedLinearCalendar({ year }: ZoomedLinearCalendarProps) {
   const { getTasksByComplexity } = useTasks();
+  const { tagColorMap } = useTagsManager();
   const tasks = getTasksByComplexity("Medium");
   const [anchorMonth, setAnchorMonth] = useState(new Date().getMonth());
+  const { openCreate, openEdit, modal } = useTaskFormModal("Medium");
+  const dragSelection = useDragDateRange(openCreate);
 
-  const rollingMonths = getRollingMonths(year, anchorMonth, 4);
+  const monthRows = getRollingMonths(year, anchorMonth, 4);
 
   const handlePrev = () => {
     setAnchorMonth((prev) => (prev === 0 ? 11 : prev - 1));
@@ -27,38 +33,43 @@ export function ZoomedLinearCalendar({ year }: ZoomedLinearCalendarProps) {
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-terminal-border px-6 py-3">
-        <div>
-          <h2 className="font-mono text-xs uppercase tracking-[0.25em] text-terminal-muted">
-            Zoomed Calendar
-          </h2>
-          <p className="mt-1 font-mono text-[10px] text-terminal-dim">
-            4-month window · Medium complexity · {tasks.length} active
-          </p>
+    <>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between border-b border-terminal-border px-6 py-3">
+          <div>
+            <h2 className="font-mono text-xs uppercase tracking-[0.25em] text-terminal-muted">
+              Zoomed Calendar
+            </h2>
+            <p className="mt-1 font-mono text-[10px] text-terminal-dim">
+              4-month window · Medium complexity · {tasks.length} active · Click
+              or drag days to add · Click a task to edit
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <NavButton onClick={handlePrev} label="Previous month">
+              ‹
+            </NavButton>
+            <NavButton onClick={handleNext} label="Next month">
+              ›
+            </NavButton>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <NavButton onClick={handlePrev} label="Previous month">
-            ‹
-          </NavButton>
-          <NavButton onClick={handleNext} label="Next month">
-            ›
-          </NavButton>
+
+        <div className="flex min-h-0 flex-1 p-4">
+          <LinearCalendarGrid
+            monthRows={monthRows}
+            tasks={tasks}
+            minCellHeight={56}
+            fillAvailableHeight
+            dragSelection={dragSelection}
+            onTaskClick={openEdit}
+            tagColorMap={tagColorMap}
+          />
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
-        {rollingMonths.map(({ year: rowYear, month }) => (
-          <LinearCalendarGrid
-            key={`${rowYear}-${month}`}
-            year={rowYear}
-            tasks={tasks}
-            months={[month]}
-            cellHeight={56}
-          />
-        ))}
-      </div>
-    </div>
+      {modal}
+    </>
   );
 }
 
